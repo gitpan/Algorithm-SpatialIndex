@@ -20,6 +20,7 @@ sub new {
   my %opt = @_;
 
   my $self = bless {
+    bucket_size => 100,
     %opt,
   } => $class;
 
@@ -45,6 +46,8 @@ sub _set_storage {
 sub no_of_subnodes { 4 }
 
 sub coord_types { qw(double double double double) }
+
+sub item_coord_types { qw(double double) }
 
 sub insert {
   croak("insert needs to be implemented in a subclass");
@@ -127,8 +130,8 @@ You may want to override that in your subclass.
 
 =head2 coord_types
 
-Returns (as a list) all coordinate types. If you need to store
-one x/y pair of floating point coordinates, you may return:
+Returns (as a list) all node coordinate's types. If you need to store
+one x/y pair of floating point coordinates per node, you may return:
 
   qw(double double)
 
@@ -148,10 +151,18 @@ Valid coordinate types are:
 
   float, double, integer, unsigned
 
+The integer types will be treated as C longs (likely 32bit).
+
 The default implementation returns
 C<qw(double double double double)> for storing two x/y
 coordinate pairs.
 You may want to override that in your subclass.
+
+=head2 item_coord_types
+
+Same as coord_types, but indicating what's required for each
+item stored in the tree. Defaults to one X/Y coordinate pair
+of doubles.
 
 =head1 AUTHOR
 
