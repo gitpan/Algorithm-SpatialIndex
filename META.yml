@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Algorithm-SpatialIndex
-version:            0.02
+version:            0.03
 abstract:           Flexible 2D spacial indexing
 author:
     - Steffen Mueller <smueller@cpan.org>

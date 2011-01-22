@@ -26,12 +26,12 @@ sub run {
   isa_ok($strategy, 'Algorithm::SpatialIndex::Strategy::QuadTree');
 
   is($strategy->no_of_subnodes, 4, 'QuadTree has four subnodes');
-  is_deeply([$strategy->coord_types], [qw(double double double double)], 'QuadTree has four subnodes');
+  is_deeply([$strategy->coord_types], [qw(double double double double double double)], 'QuadTree has six coordinates');
 
 
   # this is unit testing:
   SCOPE: {
-    my ($x, $y) = $strategy->_node_center_coords(2, -3, 5, 4);
+    my ($x, $y) = $strategy->_node_split_coords(undef, undef, [2, -3, 5, 4]);
     my $eps = 1.e-6;
     cmp_ok($x, '<=', 3.5+$eps);
     cmp_ok($x, '>=', 3.5-$eps);

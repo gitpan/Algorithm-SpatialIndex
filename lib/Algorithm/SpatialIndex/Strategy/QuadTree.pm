@@ -24,6 +24,8 @@ use constant {
   YLOW             => 1,
   XUP              => 2,
   YUP              => 3,
+  XSPLIT           => 4,
+  YSPLIT           => 5,
 
   UPPER_RIGHT_NODE => 0,
   UPPER_LEFT_NODE  => 1,
@@ -31,12 +33,33 @@ use constant {
   LOWER_RIGHT_NODE => 3,
 };
 
+use Exporter 'import';
+our @EXPORT_OK = qw(
+  XI
+  YI
+
+  XLOW
+  YLOW
+  XUP
+  YUP
+  XSPLIT
+  YSPLIT
+
+  UPPER_RIGHT_NODE
+  UPPER_LEFT_NODE
+  LOWER_LEFT_NODE
+  LOWER_RIGHT_NODE
+);
+our %EXPORT_TAGS = ('all' => \@EXPORT_OK);
+
 use Class::XSAccessor {
   getters => [qw(
     top_node_id
     bucket_size
   )],
 };
+
+sub coord_types { qw(double double double double double double) }
 
 sub init {
   my $self = shift;
@@ -58,7 +81,8 @@ sub init_storage {
     my $node = Algorithm::SpatialIndex::Node->new(
       coords => [
         $index->limit_x_low, $index->limit_y_low,
-        $index->limit_x_up, $index->limit_y_up
+        $index->limit_x_up, $index->limit_y_up,
+        undef, undef,
       ],
       subnode_ids => [],
     );
@@ -104,13 +128,13 @@ SCOPE: {
     } # end scope
 
     my $subnode_index;
-    if ($x <= ($nxy->[XLOW]+$nxy->[XUP])/2) {
-      if ($y <= ($nxy->[YLOW]+$nxy->[YUP])/2) { $subnode_index = LOWER_LEFT_NODE }
-      else                                    { $subnode_index = UPPER_LEFT_NODE }
+    if ($x <= $nxy->[XSPLIT]) {
+      if ($y <= $nxy->[YSPLIT]) { $subnode_index = LOWER_LEFT_NODE }
+      else                      { $subnode_index = UPPER_LEFT_NODE }
     }
     else {
-      if ($y <= ($nxy->[YLOW]+$nxy->[YUP])/2) { $subnode_index = LOWER_RIGHT_NODE }
-      else                                    { $subnode_index = UPPER_RIGHT_NODE }
+      if ($y <= $nxy->[YSPLIT]) { $subnode_index = LOWER_RIGHT_NODE }
+      else                      { $subnode_index = UPPER_RIGHT_NODE }
     }
 
     if (not defined $subnodes->[$subnode_index]) {
@@ -125,9 +149,10 @@ SCOPE: {
   }
 } # end SCOPE
 
-sub _node_center_coords {
-  # args: $self, $xlow, $ylow, $xup, $yup
-  return( ($_[1]+$_[3])/2, ($_[2]+$_[4])/2 );
+sub _node_split_coords {
+  # args: $self, $node, $bucket, $coords
+  my $c = $_[3];
+  return( ($c->[0]+$c->[2])/2, ($c->[1]+$c->[3])/2 );
 }
 
 
@@ -143,27 +168,28 @@ sub _split_node {
   $bucket = $storage->fetch_bucket($parent_node_id) if not defined $bucket;
 
   my $coords = $parent_node->coords;
-  my ($centerx, $centery) = $self->_node_center_coords(@$coords);
+  my ($splitx, $splity) = $self->_node_split_coords($parent_node, $bucket, $coords);
+  @$coords[XSPLIT, YSPLIT] = ($splitx, $splity); # stored below
   my @child_nodes;
 
   # UPPER_RIGHT_NODE => 0
   push @child_nodes, Algorithm::SpatialIndex::Node->new(
-    coords      => [$centerx, $centery, $coords->[XUP], $coords->[YUP]],
+    coords      => [$splitx, $splity, $coords->[XUP], $coords->[YUP], undef, undef],
     subnode_ids => [],
   );
   # UPPER_LEFT_NODE => 1
   push @child_nodes, Algorithm::SpatialIndex::Node->new(
-    coords      => [$coords->[XLOW], $centery, $centerx, $coords->[YUP]],
+    coords      => [$coords->[XLOW], $splity, $splitx, $coords->[YUP], undef, undef],
     subnode_ids => [],
   );
   # LOWER_LEFT_NODE => 2
   push @child_nodes, Algorithm::SpatialIndex::Node->new(
-    coords      => [$coords->[XLOW], $coords->[YLOW], $centerx, $centery],
+    coords      => [$coords->[XLOW], $coords->[YLOW], $splitx, $splity, undef, undef],
     subnode_ids => [],
   );
   # LOWER_RIGHT_NODE => 3
   push @child_nodes, Algorithm::SpatialIndex::Node->new(
-    coords      => [$centerx, $coords->[YLOW], $coords->[XUP], $centery],
+    coords      => [$splitx, $coords->[YLOW], $coords->[XUP], $splity, undef, undef],
     subnode_ids => [],
   );
 
@@ -178,13 +204,13 @@ sub _split_node {
   my $items = $bucket->items;
   my @child_items = ([], [], [], []);
   foreach my $item (@$items) {
-    if ($item->[XI] <= $centerx) {
-      if ($item->[YI] <= $centery) { push @{$child_items[LOWER_LEFT_NODE]}, $item }
-      else                         { push @{$child_items[UPPER_LEFT_NODE]}, $item }
+    if ($item->[XI] <= $splitx) {
+      if ($item->[YI] <= $splity) { push @{$child_items[LOWER_LEFT_NODE]}, $item }
+      else                        { push @{$child_items[UPPER_LEFT_NODE]}, $item }
     }
     else {
-      if ($item->[YI] <= $centery) { push @{$child_items[LOWER_RIGHT_NODE]}, $item }
-      else                         { push @{$child_items[UPPER_RIGHT_NODE]}, $item }
+      if ($item->[YI] <= $splity) { push @{$child_items[LOWER_RIGHT_NODE]}, $item }
+      else                        { push @{$child_items[UPPER_RIGHT_NODE]}, $item }
     }
   }
   
@@ -243,15 +269,15 @@ SCOPE: {
     return $node if not @$snode_ids;
 
     # find the right sub node
-    my ($centerx, $centery) = $self->_node_center_coords(@{$node->coords});
+    my ($splitx, $splity) = @{$node->coords}[XSPLIT, YSPLIT];
     my $subnode_id;
-    if ($x <= $centerx) {
-      if ($y <= $centery) { $subnode_id = $snode_ids->[LOWER_LEFT_NODE] }
-      else                { $subnode_id = $snode_ids->[UPPER_LEFT_NODE] }
+    if ($x <= $splitx) {
+      if ($y <= $splity) { $subnode_id = $snode_ids->[LOWER_LEFT_NODE] }
+      else               { $subnode_id = $snode_ids->[UPPER_LEFT_NODE] }
     }
     else {
-      if ($y <= $centery) { $subnode_id = $snode_ids->[LOWER_RIGHT_NODE] }
-      else                { $subnode_id = $snode_ids->[UPPER_RIGHT_NODE] }
+      if ($y <= $splity) { $subnode_id = $snode_ids->[LOWER_RIGHT_NODE] }
+      else               { $subnode_id = $snode_ids->[UPPER_RIGHT_NODE] }
     }
 
     my $snode = $storage->fetch_node($subnode_id);
