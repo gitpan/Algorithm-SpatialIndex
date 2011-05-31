@@ -438,7 +438,7 @@ sub fetch_bucket {
     next if not defined $item->[0];
     push @$items, $item;
   }
-  my $bucket = Algorithm::SpatialIndex::Bucket->new(node_id => $node_id, items => $items);
+  my $bucket = $self->bucket_class->new(node_id => $node_id, items => $items);
   return $bucket;
 }
 
@@ -603,7 +603,7 @@ Steffen Mueller, E<lt>smueller@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2010 by Steffen Mueller
+Copyright (C) 2010, 2011 by Steffen Mueller
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.10.1 or,

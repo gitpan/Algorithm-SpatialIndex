@@ -11,18 +11,32 @@ use Class::XSAccessor {
   getters => [qw(
     index
     no_of_subnodes
+    bucket_class
   )],
 };
 
 sub new {
   my $class = shift;
   my %opt = @_;
+  my $ext_opt = $opt{opt}||{};
 
   my $self = bless {
+    bucket_class => defined($ext_opt->{bucket_class}) ? $ext_opt->{bucket_class} : 'Algorithm::SpatialIndex::Bucket',
     %opt,
   } => $class;
 
   weaken($self->{index});
+
+  my $bucket_class = $self->bucket_class;
+  if (not $bucket_class =~ /::/) {
+    $bucket_class = "Algorithm::SpatialIndex::Bucket::$bucket_class";
+    $self->{bucket_class} = $bucket_class;
+  }
+
+  eval "require $bucket_class; 1;" or do {
+    my $err = $@ || "Zombie error";
+    die "Could not load bucket implementation '$bucket_class': $err"
+  };
 
   my $strategy = $self->index->strategy;
   $self->{no_of_subnodes} = $strategy->no_of_subnodes;
@@ -147,7 +161,7 @@ Steffen Mueller, E<lt>smueller@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2010 by Steffen Mueller
+Copyright (C) 2010, 2011 by Steffen Mueller
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.10.1 or,

@@ -333,7 +333,7 @@ sub _make_bucket_for_node {
   my $items = shift || [];
   $node_id = $node_id->id if ref $node_id;
 
-  my $b = Algorithm::SpatialIndex::Bucket->new(
+  my $b = $storage->bucket_class->new(
     node_id => $node_id,
     items   => $items,
   );
@@ -496,7 +496,7 @@ Steffen Mueller, E<lt>smueller@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2010-2011 by Steffen Mueller
+Copyright (C) 2010, 2011 by Steffen Mueller
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.10.1 or,
